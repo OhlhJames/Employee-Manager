@@ -19,16 +19,15 @@ const db = mysql.createConnection(
   console.log(`Connected to the employee_db database.`)
 );
 
-inquirer
-  .prompt([
+inquirer.prompt([
     {
         type: 'list',
         message: 'What would you like to do?',
         name:'intro',
-        choices:['View All Employees', 'Add Employee', 'Update Employee Role', 'View All Roles', 'Add Role', 'View All Departments', 'Add Department']
+        choices:['View All Employees', 'Add Employee', 'Update Employee Role', 'View All Roles', 'Add Role', 'View All Departments', 'Add Department', 'Quit']
     }
-  ])
-  .then((data) => {
+])
+.then((data) => {
     const introChoice = data.intro
     switch(introChoice){
         case 'View All Employees':
@@ -59,11 +58,43 @@ inquirer
                     name: 'manager',
                     message: 'Who is the employees manager?',
                     choices: ['None', db.query('SELECT name FROM employee')]
-                },
-                {
-                    
                 }
             ])
-            
+            .then((data) => {
+                db.query(`INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES (${data.firstName},${data.lastName},${data.role},${data.manager})`)
+            });
+            break;
+        case 'Update Employee Role':
+            break;
+        case 'View All Roles':
+            db.query(`SELECT * FROM department;`, function (err, results) {
+                console.log(results)
+            });
+            break;
+        case 'Add Role':
+            break;
+        case 'View All Departments':
+            db.query(`SELECT * FROM department;`, function (err, results) {
+                console.log(results)
+            });
+            break;
+        case 'Add Department':
+            inquirer.prompt([
+                {
+                    type: 'input',
+                    name:'deptName',
+                    message: 'What is the name of the department?'
+                }
+            ])
+            .then((data) => {
+                db.query(`INSERT INTO department (name) VALUES ("${data.deptName}");`);
+                db.query(`SELECT * FROM department;`, function (err, results) {
+                    console.log(results)
+                });
+            });
+            break;
+        case 'Quit':
+            break; 
     }
-  });
+});
+
