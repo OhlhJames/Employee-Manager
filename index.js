@@ -19,78 +19,93 @@ const db = mysql.createConnection(
   console.log(`Connected to the employee_db database.`)
 );
 
-inquirer
-  .prompt([
-    {
-      type: "list",
-      message: "What would you like to do?",
-      name: "intro",
-      choices: [
-        "View All Employees",
-        "Add Employee",
-        "Update Employee Role",
-        "View All Roles",
-        "Add Role",
-        "View All Departments",
-        "Add Department",
-        "Quit",
-      ],
-    },
-  ])
-  .then((data) => {
-    db.query("SELECT * FROM role", (err, res) => {
-      if (err) {
-        console.log(err);
-        return;
-      }
-      const roleList = [];
+async function allDepartments (){
+  db.query(`SELECT * FROM department`, (err, res) => {
+    console.table(res);
+  });
+}
 
-      if (res.length) {
-        for (let i = 0; i < res.length; i++) {
-          roleList.push(res[i]);
-        }
-      }
-      const deptList = [];
-      db.query("SELECT * FROM department", (err, res) => {
+async function allRoles(){
+  db.query(`SELECT * FROM role`, (err, res) => {
+    console.table(res);
+  });
+}
+ 
+async function allEmployees (){
+  db.query("SELECT * FROM employee", async (err, res) => {
+    console.table(res);
+  });
+}
+
+function menu () {
+  inquirer
+    .prompt([
+      {
+        type: "list",
+        message: "What would you like to do?",
+        name: "intro",
+        choices: [
+          "View All Employees",
+          "Add Employee",
+          "Update Employee Role",
+          "View All Roles",
+          "Add Role",
+          "View All Departments",
+          "Add Department",
+          "Quit",
+        ],
+      },
+    ])
+    .then((data) => {
+      db.query("SELECT * FROM role", (err, res) => {
         if (err) {
           console.log(err);
           return;
         }
+        const roleList = [];
+
         if (res.length) {
           for (let i = 0; i < res.length; i++) {
-            deptList.push(res[i]);
+            roleList.push(res[i]);
           }
         }
-        const employeeList = [];
-        db.query("SELECT * FROM employee", (err, res) => {
+        const deptList = [];
+        db.query("SELECT * FROM department", (err, res) => {
           if (err) {
             console.log(err);
             return;
           }
           if (res.length) {
             for (let i = 0; i < res.length; i++) {
-              employeeList.push(res[i]);
+              deptList.push(res[i]);
             }
           }
-            choices({roleList, deptList, employeeList, data});
+          const employeeList = [];
+          db.query("SELECT * FROM employee", (err, res) => {
+            if (err) {
+              console.log(err);
+              return;
+            }
+            if (res.length) {
+              for (let i = 0; i < res.length; i++) {
+                employeeList.push(res[i]);
+              }
+            }
+              choices({roleList, deptList, employeeList, data});
+          });
         });
-    
       });
     });
-  });
-
-function choices({roleList, deptList, employeeList, data}) {
-    console.log(employeeList, "Mia")
-  const introChoice = data.intro;
-
+}
+async function choices({roleList, deptList, employeeList, data}) {
+  const introChoice = await data.intro;
+  let more = true
   switch (introChoice) {
     case "View All Employees":
-      db.query("SELECT * FROM employee", (err, res) => {
-        console.log(res);
-      });
+      allEmployees();
       break;
     case "Add Employee":
-      inquirer
+    inquirer 
         .prompt([
           {
             type: "input",
@@ -106,7 +121,9 @@ function choices({roleList, deptList, employeeList, data}) {
             type: "list",
             name: "role",
             message: "What is the employees role?",
-            choices: deptList,
+            choices: roleList.map((role) => {
+              return`${role.title}`
+            }),
           },
           {
             type: "list",
@@ -119,31 +136,18 @@ function choices({roleList, deptList, employeeList, data}) {
           if ((data.manager = "none")) {
             data.manager = null;
           }
-          db.query(
-            `SELECT * FROM department WHERE name = ?`,
-            data.role,
-            (err, res) => {
-              const values = [
-                data.firstName,
-                data.lastName,
-                res[0].id,
-                data.manager,
-              ];
-              db.query(
-                `INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES (?,?,?,?)`,
-                values,
-                (err, res) => {
+          const wait = db.query(
+            `SELECT * FROM role WHERE title = ?`, data.role, (err, res) => {
+              console.log(res)
+              const values = [ data.firstName,data.lastName,res[0].id,data.manager,];
+              db.query(`INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES (?,?,?,?)`, values, (err, res) => {
                   if (err) {
                     console.log(err);
                   }
-                }
-              );
-              db.query(`SELECT * FROM employee`, (err, res) => {
-                console.log(res);
-              });
-            }
-          );
-        });
+                });
+              allEmployees();
+            });
+        })
       break;
     case "Update Employee Role":
       inquirer
@@ -161,41 +165,33 @@ function choices({roleList, deptList, employeeList, data}) {
             type: "list",
             name: "roleSelect",
             message: "Which role should they receive?",
-            choices: roleList,
+            choices: roleList.map((role)=>{
+              return `${role.title}`
+            }),
           },
         ])
         .then((data) => {
-          db.query(
-            `SELECT * FROM role WHERE name = ?`,
-            data.roleSelect,
-            (err, res) => {
+          const employeeNames = data.employeeSelect.split(" ")
+          db.query( `SELECT * FROM role WHERE title = ?`, data.roleSelect, (err, res) => {
               const role = res[0].id;
-              return role;
-            }
-          );
-          db.query(
-            `SELECT * FROM employee WHERE first_name =?`,
-            employeeSelect,
-            (err, res) => {
-              const values = [role, res[0].id];
-              db.query(
-                `UPDATE employee SET role_id = ? WHERE id = ?`,
-                values,
-                (err, res) => {
-                  if (err) {
-                    console.log(err);
-                  }
-                  console.log(res);
-                }
-              );
-            }
-          );
-        });
+              db.query(`SELECT * FROM employee WHERE first_name =? AND last_name =?`, employeeNames, (err, res) => {
+                  const employeeId = res[0].id
+                  const values = [role, employeeId];
+                  db.query(`UPDATE employee SET role_id = ? WHERE id = ?`, values, (err, res) => {
+                      if (err) {
+                        console.log(err);
+                      }
+                      console.log(employeeId)
+                      db.query(`SELECT * FROM employee WHERE id = ?`, employeeId, (err, res) => {
+                        console.table(res);
+                      });
+                    });
+                });
+            });
+          })
       break;
     case "View All Roles":
-      db.query(`SELECT * FROM department`, function (err, res) {
-        console.log(res);
-      });
+      allRoles();
       break;
     case "Add Role":
       inquirer
@@ -218,31 +214,20 @@ function choices({roleList, deptList, employeeList, data}) {
           },
         ])
         .then((data) => {
-          db.query(
-            `SELECT * FROM department WHERE name = ?`,
-            data.role,
-            (err, res) => {
+          db.query(`SELECT * FROM department WHERE name = ?`, data.role, (err, res) => {
               const values = [res[0].id, data.rolePay, data.roleTitle];
-              db.query(
-                `INSERT INTO department (title, salary, department_id) VALUES (?,?,?)`,
-                values,
-                (err, res) => {
+              db.query(`INSERT INTO department (title, salary, department_id) VALUES (?,?,?)`, values, (err, res) => {
                   if (err) {
                     console.log(err);
                   }
-                }
-              );
-            }
-          );
-          db.query(`SELECT * FROM role`, (err, res) => {
-            console.log(res);
-          });
+                });
+            });
+          allRoles()
         });
+      
       break;
     case "View All Departments":
-      db.query(`SELECT * FROM department`, (err, res) => {
-        console.log(res);
-      });
+      allDepartments()
       break;
     case "Add Department":
       inquirer
@@ -261,14 +246,18 @@ function choices({roleList, deptList, employeeList, data}) {
               if (err) {
                 console.log(err);
               }
-            }
-          );
-          db.query(`SELECT * FROM department`, (err, res) => {
-            console.table(res);
-          });
+            });
+          allDepartments()
         });
       break;
     case "Quit":
-      break;
+      let more = false
+      return more
+  }
+  if(more){
+    menu();
   }
 }
+
+
+menu();
